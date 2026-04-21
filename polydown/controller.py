@@ -38,6 +38,7 @@ class PolydownController:
         fileformat: Optional[str],
         texture_format: Optional[str] = None,
         maps: Optional[List[str]] = None,
+        model_format: Optional[List[str]] = None,
     ):
         async with aiohttp.ClientSession() as session:
             client = PolyHavenClient(session)
@@ -66,7 +67,7 @@ class PolydownController:
                         new_tasks = self._generate_tasks(
                             asset_type, asset_id, files_data, folder, sizes,
                             overwrite, noimgs, tone, fileformat,
-                            texture_format, maps
+                            texture_format, maps, model_format
                         )
                         tasks.extend(new_tasks)
                     except Exception as e:
@@ -199,6 +200,7 @@ class PolydownController:
         fileformat: Optional[str],
         texture_format: Optional[str] = None,
         maps: Optional[List[str]] = None,
+        model_format: Optional[List[str]] = None,
     ) -> List[DownloadTask]:
         tasks = []
 
@@ -208,54 +210,28 @@ class PolydownController:
             ))
         elif asset_type in ["textures", "models"]:
             tasks.extend(self._generate_texture_tasks(
-                asset_id, data, root_folder, target_sizes, overwrite, noimgs, tone, texture_format, maps, asset_type
+                asset_id, data, root_folder, target_sizes, overwrite, noimgs, tone,
+                texture_format, maps, asset_type, model_format
             ))
 
         return tasks
 
-    def _generate_hdri_tasks(self, asset_id, data, root_folder, target_sizes, overwrite, noimgs, tone, fileformat):
+    def _generate_texture_tasks(self, asset_id, data, root_folder, target_sizes, overwrite, noimgs, tone, texture_format, maps, asset_type="textures", model_format=None):
         tasks = []
-        available_sizes = data.get('hdri', {})
 
-        for size, size_data in available_sizes.items():
-            if target_sizes and size not in target_sizes:
-                continue
-
-            formats_to_check = [fileformat] if fileformat else ['exr', 'hdr']
-
-            for fmt in formats_to_check:
-                if fmt in size_data:
-                    file_info = size_data[fmt]
-                    url = file_info['url']
-                    md5 = file_info.get('md5')
-                    filename = url.split('/')[-1]
-
-                    tasks.append(DownloadTask(
-                        url=url,
-                        destination_folder=root_folder,
-                        filename=filename,
-                        md5=md5,
-                        overwrite=overwrite
-                    ))
-
-        if not noimgs:
-            tasks.extend(self._get_image_tasks("hdris", asset_id, root_folder, overwrite, tone))
-        return tasks
-
-    def _generate_texture_tasks(self, asset_id, data, root_folder, target_sizes, overwrite, noimgs, tone, texture_format, maps, asset_type="textures"):
-        tasks = []
-        
-        # If no specific texture args are provided, fallback to default behavior (downloading Blender/GLTF bundle)
+        # If no specific texture args are provided, fallback to default behavior (downloading model bundle)
         if not texture_format and not maps:
-            return self._generate_model_tasks(asset_id, data, root_folder, target_sizes, overwrite, noimgs, tone, asset_type=asset_type)
+            return self._generate_model_tasks(
+                asset_id, data, root_folder, target_sizes, overwrite, noimgs, tone,
+                asset_type=asset_type, model_format=model_format,
+            )
 
         # Logic for Granular Textures
-        # Always attempt to download the blend file (but without its default texture dependencies)
-        # This covers both 'models' and 'textures' which may have blend files.
+        # Always attempt to download the model file (but without its default texture dependencies)
         tasks.extend(self._generate_model_tasks(
-            asset_id, data, root_folder, target_sizes, overwrite, 
+            asset_id, data, root_folder, target_sizes, overwrite,
             noimgs=True, tone=tone, asset_type=asset_type,
-            include_model_textures=False
+            include_model_textures=False, model_format=model_format,
         ))
 
         # Filter out non-map keys
@@ -313,40 +289,45 @@ class PolydownController:
             
         return tasks
 
-    def _generate_model_tasks(self, asset_id, data, root_folder, target_sizes, overwrite, noimgs, tone):
+    def _generate_model_tasks(
+        self, asset_id, data, root_folder, target_sizes, overwrite, noimgs, tone,
+        asset_type="models", include_model_textures=True, model_format=None,
+    ):
         tasks = []
-        # Support both 'blend' and 'gltf' if ever needed, but defaulting to blend for now as per original code
-        # Original code only checked 'blend' key
-        blend_data = data.get('blend', {})
-        for size, content in blend_data.items():
-            if target_sizes and size not in target_sizes:
+        formats = model_format or ["blend"]
+
+        asset_folder = os.path.join(root_folder, asset_id)
+
+        for fmt in formats:
+            fmt_data = data.get(fmt, {})
+            if not fmt_data:
                 continue
 
-            # Subfolder logic
-            asset_folder = os.path.join(root_folder, asset_id)
-            # Original PolyDown saves to: root/asset_id/asset_id_size/
-            size_folder = os.path.join(asset_folder, f"{asset_id}_{size}")
-            textures_folder = os.path.join(size_folder, "textures")
+            for size, content in fmt_data.items():
+                if target_sizes and size not in target_sizes:
+                    continue
 
-            # Blend file
-            if 'blend' in content:
-                b_info = content.get('blend', {})
-                if b_info:
-                    url = b_info['url']
-                    md5 = b_info.get('md5')
-                    filename = url.split('/')[-1]
+                size_folder = os.path.join(asset_folder, f"{asset_id}_{size}")
+                textures_folder = os.path.join(size_folder, "textures")
 
-                    tasks.append(DownloadTask(
-                        url=url,
-                        destination_folder=size_folder,
-                        filename=filename,
-                        md5=md5,
-                        overwrite=overwrite
-                    ))
+                file_info = content.get(fmt)
+                if not file_info or 'url' not in file_info:
+                    continue
 
-                    # Includes (textures associated with the blend file)
-                    includes = b_info.get('include', {})
-                    for tex_key, tex_info in includes.items():
+                url = file_info['url']
+                md5 = file_info.get('md5')
+                filename = url.split('/')[-1]
+
+                tasks.append(DownloadTask(
+                    url=url,
+                    destination_folder=size_folder,
+                    filename=filename,
+                    md5=md5,
+                    overwrite=overwrite,
+                ))
+
+                if include_model_textures:
+                    for tex_info in file_info.get('include', {}).values():
                         t_url = tex_info['url']
                         t_md5 = tex_info.get('md5')
                         t_filename = t_url.split('/')[-1]
@@ -356,12 +337,11 @@ class PolydownController:
                             destination_folder=textures_folder,
                             filename=t_filename,
                             md5=t_md5,
-                            overwrite=overwrite
+                            overwrite=overwrite,
                         ))
 
         if not noimgs:
-            image_folder = os.path.join(root_folder, asset_id)
-            tasks.extend(self._get_image_tasks(asset_type, asset_id, image_folder, overwrite, tone))
+            tasks.extend(self._get_image_tasks(asset_type, asset_id, asset_folder, overwrite, tone))
 
         return tasks
 
@@ -387,63 +367,11 @@ class PolydownController:
                         destination_folder=root_folder,
                         filename=filename,
                         md5=md5,
-                        overwrite=overwrite
+                        overwrite=overwrite,
                     ))
 
         if not noimgs:
             tasks.extend(self._get_image_tasks("hdris", asset_id, root_folder, overwrite, tone))
-        return tasks
-
-
-    def _generate_model_tasks(self, asset_id, data, root_folder, target_sizes, overwrite, noimgs, tone, asset_type="models", include_model_textures=True):
-        tasks = []
-        blend_data = data.get('blend', {})
-        for size, content in blend_data.items():
-            if target_sizes and size not in target_sizes:
-                continue
-
-            # Subfolder logic
-            asset_folder = os.path.join(root_folder, asset_id)
-            # Original PolyDown saves to: root/asset_id/asset_id_size/
-            size_folder = os.path.join(asset_folder, f"{asset_id}_{size}")
-            textures_folder = os.path.join(size_folder, "textures")
-
-            # Blend file
-            if 'blend' in content:
-                b_info = content.get('blend', {})
-                if b_info:
-                    url = b_info['url']
-                    md5 = b_info.get('md5')
-                    filename = url.split('/')[-1]
-
-                    tasks.append(DownloadTask(
-                        url=url,
-                        destination_folder=size_folder,
-                        filename=filename,
-                        md5=md5,
-                        overwrite=overwrite
-                    ))
-
-                    # Includes (textures associated with the blend file)
-                    if include_model_textures:
-                        includes = b_info.get('include', {})
-                        for tex_key, tex_info in includes.items():
-                            t_url = tex_info['url']
-                            t_md5 = tex_info.get('md5')
-                            t_filename = t_url.split('/')[-1]
-
-                            tasks.append(DownloadTask(
-                                url=t_url,
-                                destination_folder=textures_folder,
-                                filename=t_filename,
-                                md5=t_md5,
-                                overwrite=overwrite
-                            ))
-        
-        if not noimgs:
-            image_folder = os.path.join(root_folder, asset_id)
-            tasks.extend(self._get_image_tasks(asset_type, asset_id, image_folder, overwrite, tone))
-            
         return tasks
 
     def _get_image_tasks(self, asset_type, asset_id, folder, overwrite, tone):

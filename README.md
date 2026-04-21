@@ -1,10 +1,9 @@
 ![screenshot](https://i.imgur.com/MTB3sCz.gif)
 
 <div align="center">
-<a href="https://github.com/agmmnn/polydown">
-<img alt="GitHub release (latest by date)" src="https://img.shields.io/github/v/release/agmmnn/polydown"></a>
-<a href="https://pypi.org/project/polydown/">
-<img alt="PyPI" src="https://img.shields.io/pypi/v/polydown"></a>
+<a href="https://github.com/agmmnn/polydown"><img alt="GitHub release (latest by date)" src="https://img.shields.io/github/v/release/agmmnn/polydown"></a>
+<a href="https://pypi.org/project/polydown/"><img alt="PyPI" src="https://img.shields.io/pypi/v/polydown"></a>
+<a href="https://pepy.tech/projects/polydown"><img src="https://static.pepy.tech/personalized-badge/polydown?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads" alt="PyPI Downloads"></a>
 
 Batch downloader for [polyhaven.com](https://polyhaven.com/). Download HDRIs, textures, and models in any sizes you want.  
 This project uses Poly Haven's [Public API](https://github.com/Poly-Haven/Public-API).
@@ -85,6 +84,21 @@ polydown textures -tf exr --maps nor_gl
 polydown models -tf jpg --maps Diffuse -s 1k
 ```
 
+**Select model file formats:**
+
+By default, `models` downloads `.blend` files. Use `-mf`/`--model-format` to pick one or more formats. Available: `blend`, `fbx`, `gltf`, `usd`, `usdc`, `usdz`.
+
+```bash
+# Download both Blend and FBX
+polydown models -s 2k -mf blend fbx
+
+# Only FBX
+polydown models -s 2k -mf fbx
+
+# All common formats
+polydown models -s 2k -mf blend fbx gltf usd
+```
+
 ## Arguments
 
 | Argument                  | Description                                                                                                              |
@@ -100,6 +114,7 @@ polydown models -tf jpg --maps Diffuse -s 1k
 | `-t`, `--tone`            | Download 8K Tonemapped JPG (HDRIs only).                                                                                 |
 | `-ff`, `--fileformat`     | File format for HDRIs (`hdr`, `exr`).                                                                                    |
 | `-tf`, `--texture-format` | File format for Textures/Models (`jpg`, `png`, `exr`).                                                                   |
+| `-mf`, `--model-format`   | Model file format(s) (`blend`, `fbx`, `gltf`, `usd`, `usdc`, `usdz`). Accepts multiple. Default: `blend`.                |
 | `--maps`                  | Texture maps to download (e.g., `Diffuse`, `Rough`, `nor_gl`). If used without values, lists available common map types. |
 | `-w`, `--workers`         | Amount of workers (threads) for concurrent downloads.                                                                    |
 | `-v`, `--version`         | Show program's version number and exit.                                                                                  |
@@ -142,6 +157,7 @@ This project uses [uv](https://github.com/astral-sh/uv) for dependency managemen
 - [x] Progressbar for current download task(s)
 - [x] Workers for concurrent downloads
 - [x] Select the file format to download
+- [x] Select model file format (blend, fbx, gltf, usd)
 
 ## License
 

@@ -26,6 +26,7 @@ async def _async_polycli(args):
     fileformat = args.fileformat
     texture_format = args.texture_format
     maps = args.maps
+    model_format = args.model_format
 
     # Validation Phase
     async with aiohttp.ClientSession() as session:
@@ -121,4 +122,5 @@ async def _async_polycli(args):
         fileformat=fileformat,
         texture_format=args.texture_format,
         maps=args.maps,
+        model_format=model_format,
     )

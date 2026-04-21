@@ -1,8 +1,12 @@
 import argparse
 import datetime
+from importlib.metadata import version, PackageNotFoundError
 from .cli import polycli
 
-__version__ = "0.4.0"
+try:
+    __version__ = version("polydown")
+except PackageNotFoundError:
+    __version__ = "0.0.0+local"
 
 ap = argparse.ArgumentParser()
 ap.add_argument(
@@ -87,6 +91,14 @@ ap.add_argument(
     default=None,
     choices=["jpg", "png", "exr"],
     help="texture file format (jpg, png, exr).",
+)
+ap.add_argument(
+    "-mf",
+    "--model-format",
+    nargs="+",
+    default=["blend"],
+    choices=["blend", "fbx", "gltf", "usd", "usdc", "usdz"],
+    help="model file format(s) to download. eg: blend fbx gltf usd. Default: blend.",
 )
 ap.add_argument(
     "--maps",
